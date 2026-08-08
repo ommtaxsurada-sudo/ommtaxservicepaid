@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+ <html>
+ <head>
+ <meta charset="UTF-8">
+ <title>Sales Entry</title>
+ 
+ <style>
+body{
+    font-family:Arial;
+    max-width:1200px;
+    margin:20px auto;
+    padding:20px;
+}
+ 
+ input, select{
+    width:100%;
+    padding:10px;
+    margin:8px 0;
+    font-size:16px;
+    box-sizing:border-box;
+}
+ 
+ button{
+ padding:10px 20px;
+ font-size:16px;
+ cursor:pointer;
+ }
+ 
+ table{
+ width:100%;
+ border-collapse:collapse;
+ margin-top:20px;
+ }
+ 
+ table,th,td{
+ border:1px solid #ccc;
+ }
+ 
+ th,td{
+ padding:10px;
+ text-align:left;
+ }
+ 
+ tr:nth-child(even){
+ background:#f5f5f5;
+ }
+ 
+ h2{
+ text-align:center;
+ }
+ </style>
+ 
+ </head>
+ <body>
+ 
+ <h2>Sales Entry</h2>
+ 
+ <input type="text"
+       id="name"
+       list="customerList"
+       placeholder="Customer Name">
+
+<datalist id="customerList"></datalist>
+ 
+ <input type="date" id="date">
+ 
+ <input type="number" id="payment" placeholder="Enter Total Sales Amount">
+ <label>Sales Descrption</label>
+<input type="text" id="transType" placeholder="Enter sales descrption">
+ 
+ <button onclick="saveData()">Save</button>
+ 
+ <hr>
+ 
+ <h3>Search</h3>
+ 
+ <input type="text"
+       id="search"
+       list="searchCustomerList"
+       placeholder="Search Customer Name"
+       oninput="searchData()">
+
+<datalist id="searchCustomerList"></datalist>
+ 
+ <label>From Date</label>
+ <input type="date"
+ id="fromDate"
+ onchange="searchData()">
+ 
+ <label>To Date</label>
+ <input type="date"
+ id="toDate"
+ onchange="searchData()">
+ 
+ <table>
+ 
+ <thead>
+ 
+ <tr>
+ 
+ <th>Name</th>
+ <th>Date</th>
+ <th>Sales</th>
+ <th>Description</th>
+ <th>Action</th>
+ </tr>
+ 
+ </thead>
+ 
+ <tbody id="tbody"></tbody>
+ 
+ </table>
+ <h3>Total Sales: ₹ <span id="totalPayment">0</span></h3>
+ <script type="module">
+
+
+
+
+
+
+
+
+
+  
+ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+ 
+ import {
+getFirestore,
+collection,
+addDoc,
+getDocs,
+doc,
+updateDoc,
+deleteDoc
+}
+ from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+ 
+ const firebaseConfig = {
+ 
+
+  apiKey: "AIzaSyBOw2CG4-8JWYNl5hf3aR7yCPjcPI41IC0",
+  authDomain: "ommtaxsolutions.firebaseapp.com",
+  projectId: "ommtaxsolutions",
+  storageBucket: "ommtaxsolutions.firebasestorage.app",
+  messagingSenderId: "944702919466",
+  appId: "1:944702919466:web:6f37b36e1d5cf6d7a54453",
+  measurementId: "G-NNTHM5Y4B8"
+
+ };
+ 
+ const app = initializeApp(firebaseConfig);
+ 
+ const db = getFirestore(app);
+ let editId = null;
+ 
+ window.saveData = async function(){
+ 
+ let name=document.getElementById("name").value;
+ let date=document.getElementById("date").value;
+ let payment=document.getElementById("payment").value;
+ let transType = document.getElementById("transType").value;
+ 
+ if(name==""){
+ alert("Enter Name");
+ return;
+ }
+ 
+ if(editId){
+ 
+ await updateDoc(doc(db,"sales",editId),{
+ 
+ name:name,
+ date:date,
+ payment:payment,
+ transType: transType
+ });
+ 
+ alert("Updated Successfully");
+ 
+ editId=null;
+ 
+ }else{
+ 
+ await addDoc(collection(db,"sales"),{
+ 
+ name:name,
+ date:date,
+ payment:payment,
+ transType:transType
+ });
+ 
+ alert("Saved Successfully");
+ 
+ }
+ 
+ document.getElementById("name").value="";
+ document.getElementById("date").value="";
+ document.getElementById("payment").value="";
+ document.getElementById("transType").value = "";
+ loadData();
+ 
+ }
+ 
+ let allData=[];
+ let customerData = [];
+
+async function loadCustomerMaster() {
+
+    const snapshot = await getDocs(collection(db, "customers"));
+
+    customerData = [];
+
+    let nameOptions = "";
+    let searchOptions = "";
+
+    snapshot.forEach(document => {
+
+        let data = document.data();
+
+        customerData.push(data);
+
+        nameOptions += `<option value="${data.name}"></option>`;
+        searchOptions += `<option value="${data.name}"></option>`;
+
+    });
+
+    document.getElementById("customerList").innerHTML = nameOptions;
+    document.getElementById("searchCustomerList").innerHTML = searchOptions;
+
+}
+ 
+async function loadData(){
+
+    const querySnapshot = await getDocs(collection(db, "sales"));
+
+    allData = [];
+
+    querySnapshot.forEach(document => {
+
+        allData.push({
+            id: document.id,
+            ...document.data()
+        });
+
+    });
+
+    // Sort by date (Ascending)
+    allData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    display(allData);
+
+} 
+function display(data){
+
+    let html = "";
+    let total = 0;
+
+    data.forEach(item => {
+
+        total += Number(item.payment || 0);
+
+        html += `
+        <tr>
+            <td>${item.name}</td>
+            <td>${item.date}</td>
+            <td>${item.payment}</td>
+            <td>${item.transType || ""}</td>
+            <td>
+                <button onclick="editRecord('${item.id}')">Edit</button>
+
+                <button onclick="deleteRecord('${item.id}')"
+                style="background:red;color:white;margin-left:5px;">
+                Delete
+                </button>
+            </td>
+        </tr>
+        `;
+
+    });
+
+    document.getElementById("tbody").innerHTML = html;
+
+    document.getElementById("totalPayment").innerHTML =
+        total.toLocaleString('en-IN');
+}
+window.editRecord = function(id){
+
+    if(confirm("Do you want to edit this record?")){
+
+        let item = allData.find(x => x.id === id);
+
+        document.getElementById("name").value = item.name;
+        document.getElementById("date").value = item.date;
+        document.getElementById("payment").value = item.payment;
+
+        if(item.transType){
+            document.getElementById("transType").value = item.transType;
+        }
+
+        editId = id;
+
+    }
+
+}
+window.deleteRecord = async function(id){
+
+    let result = confirm("Are you sure you want to delete this record?");
+
+    if(result){
+
+        await deleteDoc(doc(db,"sales",id));
+
+        alert("Record deleted successfully.");
+
+        loadData();
+
+    }else{
+
+        alert("Delete cancelled.");
+
+    }
+
+}
+ 
+ window.searchData = function () {
+ 
+ let nameSearch = document.getElementById("search").value.toLowerCase();
+ let fromDate = document.getElementById("fromDate").value;
+ let toDate = document.getElementById("toDate").value;
+ 
+ let result = allData.filter(item => {
+ 
+ let nameMatch = item.name.toLowerCase().includes(nameSearch);
+ 
+ let dateMatch = true;
+ 
+ if (fromDate && item.date < fromDate) {
+ dateMatch = false;
+ }
+ 
+ if (toDate && item.date > toDate) {
+ dateMatch = false;
+ }
+ 
+ return nameMatch && dateMatch;
+ 
+ });
+ 
+ display(result);
+ }
+ loadCustomerMaster();
+ loadData();
+ 
+ </script>
+ 
+ </body>
+ </html>
